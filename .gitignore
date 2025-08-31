@@ -9,7 +9,6 @@ serena-context-server/
 
 # Build documentation and scripts
 BUILD_SUMMARY.md
-package.sh
 
 # System files
 .DS_Store
