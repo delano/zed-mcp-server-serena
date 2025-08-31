@@ -103,31 +103,23 @@ cargo build --target wasm32-wasip1 --release
 # 3. Select this directory: /path/to/mcp-server-serena
 ```
 
-### 2. Configure Zed Settings
+### 2. Automatic Configuration
 
-Add to your Zed settings (`Cmd+,`):
+**No manual configuration required!** The extension automatically:
+- Detects Python 3.11/3.12 on your system
+- Installs Serena via pip if not present
+- Registers the context server in Zed
+- Provides 19 MCP tools immediately
 
-```json
-{
-  "context_servers": {
-    "serena-context-server": {
-      "source": "extension",
-      "env": {
-        "SERENA_LOG_LEVEL": "debug"
-      }
-    }
-  }
-}
-```
+### 3. Manual Configuration (Fallback Only)
 
-For manual installation (without the extension), use:
+Only needed if automatic setup fails:
 
 ```json
 {
   "context_servers": {
     "serena-context-server": {
-      "source": "custom",
-      "command": "/usr/local/bin/python3",
+      "command": "/opt/homebrew/bin/python3.11",
       "args": ["-m", "serena.cli", "start_mcp_server"],
       "env": {
         "SERENA_LOG_LEVEL": "debug"
@@ -137,29 +129,42 @@ For manual installation (without the extension), use:
 }
 ```
 
+**Note**: Use full Python path for reliability. The extension prioritizes:
+1. `/opt/homebrew/bin/python3.11` (macOS Homebrew)
+2. `/usr/local/bin/python3.11` (standard locations)
+3. `python3.11`, `python3.12` in PATH
+
 **Available Tools:** Serena automatically exposes 19 MCP tools for semantic code analysis:
 
 - **File Operations**: `list_dir`, `find_file`, `search_for_pattern`
 - **Semantic Analysis**: `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`
 - **Code Manipulation**: `replace_symbol_body`, `insert_after_symbol`, `insert_before_symbol`
 - **Memory Management**: `write_memory`, `read_memory`, `list_memories`, `delete_memory`
-- **Agent Workflow**: `check_onboarding_performed`, `onboarding`, `think_about_collected_information`, `think_about_task_adherence`, `think_about_whether_you_are_done`, `initial_instructions`
+- **Agent Workflow**: `onboarding`, `think_about_collected_information`, `think_about_task_adherence`, `think_about_whether_you_are_done`, `check_onboarding_performed`, `initial_instructions`
 
-The extension configuration uses `"source": "extension"` to let the extension manage the server startup. The manual configuration provides the direct command and arguments for running Serena's MCP server.
+### 4. Verification
 
-### 3. Verify Installation
+To verify the extension is working:
+
+```
+Ask your AI assistant: "List the MCP tools available to you right now"
+```
+
+Expected result: 19 Serena tools should appear, including semantic analysis and code manipulation capabilities.
+
+### 5. Verify Installation
 
 1. **Check Extension Panel:**
    - Go to Extensions in Zed
-   - Look for "Serena Context Server"
+   - Look for "Serena Context Server" with ✅ status
 
-2. **Check Logs:**
-   - Open Zed's debug console
-   - Look for Serena-related messages
+2. **Test AI Integration:**
+   - Ask: "List the MCP tools available to you right now"
+   - Should show 19 Serena tools
 
-3. **Test Functionality:**
-   - Open a code project
-   - Try AI features - should use Serena's capabilities
+3. **Test Semantic Analysis:**
+   - Ask: "Use Serena to analyze the symbols in this project"
+   - Should provide symbol overview and analysis
 
 ### 4. Manual Testing
 
@@ -265,26 +270,82 @@ cargo test
 
 Check Zed's debug output for:
 - Extension loading messages
-- Python detection results
+- Python detection results (should find `/opt/homebrew/bin/python3.11`)
 - Serena installation progress
 - MCP server startup errors
 
-### Common Issues
+### Common Issues & Solutions
 
-1. **Python Not Found:**
-   - Verify Python 3.11+ is installed
-   - Check PATH environment variable
-   - Set explicit `python_executable` in settings
+#### 1. Extension Not Loading
+**Problem**: Extension doesn't appear in Zed Extensions panel
+**Solutions**:
+- ✅ **Use Zed Preview/Dev**: Extensions don't work in Zed Stable
+- ✅ **Install Correct Directory**: Use `serena-context-server/` not root directory
+- ✅ **Rebuild Extension**: `cargo build --target wasm32-wasip1 --release`
+- ✅ **Update WASM**: `cp target/wasm32-wasip1/release/zed_serena_context_server.wasm extension.wasm`
 
-2. **Serena Installation Fails:**
-   - Check pip permissions
-   - Verify internet connection
-   - Try manual installation
+#### 2. Python Version Issues
+**Problem**: "Python 3.11 or 3.12 not found" error
+**Solutions**:
+```bash
+# Install compatible Python
+brew install python@3.11
 
-3. **MCP Server Won't Start:**
-   - Check Python can import serena
-   - Verify serena-mcp-server command exists
-   - Check for port conflicts
+# Verify installation
+python3.11 --version
+which python3.11
+
+# Test Serena installation
+python3.11 -m pip install serena-agent
+python3.11 -c "import serena; print('Version:', serena.__version__)"
+```
+
+#### 3. Serena Installation Fails
+**Problem**: Extension can't install `serena-agent`
+**Solutions**:
+- Check pip permissions and internet connection
+- Install manually: `python3.11 -m pip install serena-agent`
+- Use virtual environment if needed
+- Verify Python 3.11/3.12 specifically (3.13+ not supported)
+
+#### 4. MCP Server Won't Start
+**Problem**: Context server shows error status
+**Solutions**:
+```bash
+# Test MCP server manually
+python3.11 -m serena.cli start_mcp_server
+
+# Check if command exists
+python3.11 -m serena.cli --help
+
+# Verify imports work
+python3.11 -c "import serena.cli; print('OK')"
+```
+
+#### 5. No Serena Tools Available
+**Problem**: AI assistant doesn't see Serena tools
+**Solutions**:
+1. Check Extensions panel shows "Serena Context Server" with ✅
+2. Restart Zed completely
+3. Ask AI: "List available MCP tools" - should show 19 Serena tools
+4. Try manual configuration as fallback (see above)
+
+#### 6. Automatic Detection Fails
+**Problem**: Extension can't find Python/Serena automatically
+**Manual Configuration**:
+```json
+{
+  "context_servers": {
+    "serena-context-server": {
+      "command": "/opt/homebrew/bin/python3.11",
+      "args": ["-m", "serena.cli", "start_mcp_server"],
+      "env": {
+        "SERENA_LOG_LEVEL": "debug"
+      }
+    }
+  }
+}
+```
 
 ### Debugging Commands
 
