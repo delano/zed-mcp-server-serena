@@ -44,7 +44,7 @@ This Zed extension provides seamless integration with Serena's MCP server, offer
 2. **Install as Dev Extension**:
    - Download/clone this repository
    - In Zed: `Cmd+Shift+P` → "zed: install dev extension"
-   - Select: `path/to/mcp-server-serena/serena-context-server` directory
+   - Select: `path/to/zed-mcp-server-serena/serena-context-server` directory
    - The extension installs automatically without manual configuration
 
 3. **Verify Installation**:

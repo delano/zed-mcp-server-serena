@@ -16,7 +16,7 @@ This document provides detailed instructions for building, testing, and contribu
 1. **Clone the repository:**
    ```bash
    git clone <your-repo-url>
-   cd mcp-server-serena
+   cd zed-mcp-server-serena
    ```
 
 2. **Install Rust and WebAssembly target:**
@@ -100,7 +100,7 @@ cargo build --target wasm32-wasip1 --release
 # In Zed:
 # 1. Open Command Palette (Cmd+Shift+P)
 # 2. Run "zed: install dev extension"
-# 3. Select this directory: /path/to/mcp-server-serena
+# 3. Select this directory: /path/to/zed-mcp-server-serena
 ```
 
 ### 2. Automatic Configuration
@@ -185,7 +185,7 @@ serena start-mcp-server
 ### Code Structure
 
 ```
-mcp-server-serena/
+zed-mcp-server-serena/
 ├── Cargo.toml           # Rust package configuration
 ├── extension.toml       # Zed extension metadata
 ├── src/

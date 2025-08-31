@@ -10,7 +10,7 @@
 
 2. **Install Extension in Zed**:
    - `Cmd+Shift+P` → "zed: install dev extension"
-   - Select: `path/to/mcp-server-serena/serena-context-server`
+   - Select: `path/to/zed-mcp-server-serena/serena-context-server`
    - ✅ Done! Zero configuration needed.
 
 3. **Verify Working**:
