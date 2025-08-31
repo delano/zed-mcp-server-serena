@@ -6,7 +6,7 @@ This document provides detailed instructions for building, testing, and contribu
 
 ### Prerequisites
 
-- **Rust**: Latest stable version with `wasm32-wasi` target
+- **Rust**: Latest stable version with `wasm32-wasip1` target
 - **Python**: 3.11 or later
 - **Zed Editor**: Latest version
 - **Git**: For version control
@@ -24,9 +24,9 @@ This document provides detailed instructions for building, testing, and contribu
    # Install Rust if not already installed
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    source ~/.cargo/env
-   
+
    # Add WebAssembly target
-   rustup target add wasm32-wasi
+   rustup target add wasm32-wasip1
    ```
 
 3. **Verify Python installation:**
@@ -44,18 +44,18 @@ This document provides detailed instructions for building, testing, and contribu
 cargo clean
 
 # Build for WebAssembly (release mode recommended)
-cargo build --target wasm32-wasi --release
+cargo build --target wasm32-wasip1 --release
 ```
 
 The compiled extension will be located at:
-`target/wasm32-wasi/release/zed_serena_context_server.wasm`
+`target/wasm32-wasip1/release/zed_serena_context_server.wasm`
 
 ### Development Build
 
 For faster compilation during development:
 
 ```bash
-cargo build --target wasm32-wasi
+cargo build --target wasm32-wasip1
 ```
 
 ### Troubleshooting Build Issues
@@ -67,8 +67,8 @@ If you encounter errors related to `edition2024`:
 ```bash
 # Try using nightly toolchain
 rustup toolchain install nightly
-rustup target add wasm32-wasi --toolchain nightly
-cargo +nightly build --target wasm32-wasi --release
+rustup target add wasm32-wasip1 --toolchain nightly
+cargo +nightly build --target wasm32-wasip1 --release
 ```
 
 #### Registry Cache Issues
@@ -78,7 +78,7 @@ cargo +nightly build --target wasm32-wasi --release
 rm -rf ~/.cargo/registry/cache
 rm -rf ~/.cargo/registry/src
 cargo clean
-cargo build --target wasm32-wasi --release
+cargo build --target wasm32-wasip1 --release
 ```
 
 #### Rust Version Issues
@@ -95,11 +95,11 @@ rustup update stable
 
 ```bash
 # Build first
-cargo build --target wasm32-wasi --release
+cargo build --target wasm32-wasip1 --release
 
 # In Zed:
 # 1. Open Command Palette (Cmd+Shift+P)
-# 2. Run "zed: install dev extension"  
+# 2. Run "zed: install dev extension"
 # 3. Select this directory: /path/to/mcp-server-serena
 ```
 
@@ -111,16 +111,41 @@ Add to your Zed settings (`Cmd+,`):
 {
   "context_servers": {
     "serena-context-server": {
-      "settings": {
-        "python_executable": "/usr/local/bin/python3",
-        "environment": {
-          "SERENA_LOG_LEVEL": "debug"
-        }
+      "source": "extension",
+      "env": {
+        "SERENA_LOG_LEVEL": "debug"
       }
     }
   }
 }
 ```
+
+For manual installation (without the extension), use:
+
+```json
+{
+  "context_servers": {
+    "serena-context-server": {
+      "source": "custom",
+      "command": "/usr/local/bin/python3",
+      "args": ["-m", "serena.cli", "start_mcp_server"],
+      "env": {
+        "SERENA_LOG_LEVEL": "debug"
+      }
+    }
+  }
+}
+```
+
+**Available Tools:** Serena automatically exposes 19 MCP tools for semantic code analysis:
+
+- **File Operations**: `list_dir`, `find_file`, `search_for_pattern`
+- **Semantic Analysis**: `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`
+- **Code Manipulation**: `replace_symbol_body`, `insert_after_symbol`, `insert_before_symbol`
+- **Memory Management**: `write_memory`, `read_memory`, `list_memories`, `delete_memory`
+- **Agent Workflow**: `check_onboarding_performed`, `onboarding`, `think_about_collected_information`, `think_about_task_adherence`, `think_about_whether_you_are_done`, `initial_instructions`
+
+The extension configuration uses `"source": "extension"` to let the extension manage the server startup. The manual configuration provides the direct command and arguments for running Serena's MCP server.
 
 ### 3. Verify Installation
 
@@ -167,7 +192,7 @@ mcp-server-serena/
 ### Key Components
 
 - **`extension.toml`**: Extension metadata and MCP server registration
-- **`Cargo.toml`**: Rust dependencies and build configuration  
+- **`Cargo.toml`**: Rust dependencies and build configuration
 - **`src/lib.rs`**: Main extension logic including:
   - Python detection
   - Serena installation
@@ -177,7 +202,7 @@ mcp-server-serena/
 ### Making Changes
 
 1. **Edit the code** in `src/lib.rs`
-2. **Rebuild** with `cargo build --target wasm32-wasi --release`
+2. **Rebuild** with `cargo build --target wasm32-wasip1 --release`
 3. **Reinstall** the dev extension in Zed
 4. **Test** the changes
 
@@ -205,7 +230,7 @@ cargo test
    ```bash
    # Test different Python versions
    python3.11 --version
-   python3.12 --version  
+   python3.12 --version
    python3 --version
    ```
 
@@ -240,7 +265,7 @@ cargo test
 
 Check Zed's debug output for:
 - Extension loading messages
-- Python detection results  
+- Python detection results
 - Serena installation progress
 - MCP server startup errors
 
@@ -302,7 +327,7 @@ python3 -m serena.cli start_mcp_server --help
 Include in bug reports:
 - Zed version
 - Operating system
-- Python version  
+- Python version
 - Extension version
 - Error messages
 - Steps to reproduce
@@ -315,7 +340,7 @@ Include in bug reports:
 
 2. **Test Release Build:**
    ```bash
-   cargo build --target wasm32-wasi --release
+   cargo build --target wasm32-wasip1 --release
    # Test installation and functionality
    ```
 
@@ -329,4 +354,4 @@ Include in bug reports:
 - [Zed Extension Documentation](https://zed.dev/docs/extensions)
 - [Serena Documentation](https://github.com/oraios/serena)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [WebAssembly Target Documentation](https://doc.rust-lang.org/rustc/platform-support/wasm32-wasi.html)
+- [WebAssembly Target Documentation](https://doc.rust-lang.org/rustc/platform-support/wasm32-wasip1.html)
