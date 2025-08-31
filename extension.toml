@@ -3,7 +3,7 @@ name = "Serena Context Server"
 description = "Model Context Server for Serena - A powerful coding agent toolkit with semantic code analysis"
 version = "0.1.0"
 schema_version = 1
-authors = ["Claude Code <noreply@anthropic.com>", "d <d@d.com>"]
+authors = ["Claude Code <noreply@anthropic.com>", "Delano <delano@cpan.org>"]
 repository = "https://github.com/oraios/serena"
 
 [context_servers.serena-context-server]
