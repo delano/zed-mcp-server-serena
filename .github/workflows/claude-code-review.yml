@@ -37,18 +37,25 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
-            
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            Please review this pull request for a Zed editor extension that integrates Serena (semantic code analysis toolkit) via MCP.
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            Focus on these key areas:
+            - Rust code quality and safety patterns
+            - WebAssembly compatibility for Zed extensions
+            - Error handling and edge cases
+            - Cross-platform compatibility (Windows, macOS, Linux)
+            - Security considerations for extension API usage
+            - Python executable detection and fallback logic
+            - MCP server command invocation correctness
+            
+            Pay special attention to:
+            - Correct MCP server command invocation (we recently fixed a critical bug here)
+            - Extension API usage patterns following Zed conventions
+            - Error handling in restricted environments
+            - The extension executes external Python processes so security is important
+            
+            Use `gh pr comment` with your Bash tool to leave constructive, helpful feedback as a comment on the PR.
           
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://docs.anthropic.com/en/docs/claude-code/sdk#command-line for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          # Enhanced tool permissions for better review capabilities
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Read,Grep"'
 
