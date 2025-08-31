@@ -187,8 +187,8 @@ If automatic setup fails, add manual configuration:
 ```json
 {
   "serena-context-server": {
-    "command": "/opt/homebrew/bin/python3.11",
-    "args": ["-m", "serena.cli", "start_mcp_server"],
+    "command": "/opt/homebrew/bin/serena",
+    "args": ["start-mcp-server"],
     "env": {
       "SERENA_LOG_LEVEL": "debug"
     }

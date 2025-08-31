@@ -119,8 +119,8 @@ Only needed if automatic setup fails:
 {
   "context_servers": {
     "serena-context-server": {
-      "command": "/opt/homebrew/bin/python3.11",
-      "args": ["-m", "serena.cli", "start_mcp_server"],
+      "command": "/opt/homebrew/bin/serena",
+      "args": ["start-mcp-server"],
       "env": {
         "SERENA_LOG_LEVEL": "debug"
       }
@@ -175,7 +175,7 @@ Test the underlying Serena installation:
 pip install serena-agent
 
 # Test MCP server
-python -m serena.cli start_mcp_server
+serena start-mcp-server
 
 # Should start without errors
 ```
@@ -249,7 +249,7 @@ cargo test
 3. **Test MCP Server:**
    ```bash
    # Test server startup
-   python -m serena.cli start_mcp_server
+   serena start-mcp-server
    # Should start without immediate exit
    ```
 
@@ -313,10 +313,10 @@ python3.11 -c "import serena; print('Version:', serena.__version__)"
 **Solutions**:
 ```bash
 # Test MCP server manually
-python3.11 -m serena.cli start_mcp_server
+serena start-mcp-server
 
 # Check if command exists
-python3.11 -m serena.cli --help
+serena --help
 
 # Verify imports work
 python3.11 -c "import serena.cli; print('OK')"
@@ -337,8 +337,8 @@ python3.11 -c "import serena.cli; print('OK')"
 {
   "context_servers": {
     "serena-context-server": {
-      "command": "/opt/homebrew/bin/python3.11",
-      "args": ["-m", "serena.cli", "start_mcp_server"],
+      "command": "/opt/homebrew/bin/serena",
+      "args": ["start-mcp-server"],
       "env": {
         "SERENA_LOG_LEVEL": "debug"
       }
@@ -360,8 +360,8 @@ pip list | grep serena
 python3 -c "import serena; print(serena.__file__)"
 
 # Test MCP server manually
-python3 -m serena.cli --help
-python3 -m serena.cli start_mcp_server --help
+serena --help
+serena start-mcp-server --help
 ```
 
 ## Contributing
