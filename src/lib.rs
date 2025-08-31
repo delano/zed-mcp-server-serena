@@ -39,11 +39,18 @@ impl zed::Extension for SerenaContextServerExtension {
 
         // Find Python executable
         let python_exe = match &user_settings {
-            Some(settings) if settings.python_executable.is_some() => {
-                settings.python_executable.as_ref().unwrap().clone()
-            }
+            Some(settings) if settings.python_executable.is_some() => settings
+                .python_executable
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
             _ => find_python_executable()?,
         };
+
+        // Validate the Python executable path for basic security
+        if python_exe.is_empty() {
+            return Err("Python executable path cannot be empty".into());
+        }
 
         // Skip installation check - assume serena-agent is already installed
         // This avoids potential issues with restricted environments
@@ -132,7 +139,7 @@ The extension will automatically detect Python 3.11/3.12 installations, but you 
 
         let default_settings = r#"
 {
-  "python_executable": "/opt/homebrew/bin/python3.11"
+  "python_executable": null
 }
 "#
         .to_string();
@@ -149,6 +156,23 @@ The extension will automatically detect Python 3.11/3.12 installations, but you 
     }
 }
 
+/// Validates a Python path for basic security checks
+fn validate_python_path(path: &str) -> bool {
+    // Basic security check: no null bytes, no suspicious characters
+    !path.contains('\0') && !path.is_empty() && path.len() < 1000
+}
+
+/// Validates Python version string to ensure it's 3.11 or 3.12
+fn is_valid_python_version(version_str: &str) -> bool {
+    // More precise version checking to avoid matching Python 3.110, etc.
+    version_str.contains("Python 3.11.")
+        || version_str.contains("Python 3.12.")
+        || version_str.contains("Python 3.11 ")
+        || version_str.contains("Python 3.12 ")
+        || (version_str.contains("Python 3.11") && version_str.ends_with("3.11"))
+        || (version_str.contains("Python 3.12") && version_str.ends_with("3.12"))
+}
+
 fn find_python_executable() -> Result<String> {
     // First try using which to find Python executables in PATH
     let which_candidates = vec!["python3.11", "python3.12"];
@@ -157,16 +181,14 @@ fn find_python_executable() -> Result<String> {
         if let Ok(output) = StdCommand::new("which").arg(candidate).output() {
             if output.status.success() {
                 let python_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !python_path.is_empty() {
+                if !python_path.is_empty() && validate_python_path(&python_path) {
                     // Verify it's the correct version
                     if let Ok(version_output) =
                         StdCommand::new(&python_path).arg("--version").output()
                     {
                         if version_output.status.success() {
                             let version_str = String::from_utf8_lossy(&version_output.stdout);
-                            if version_str.contains("Python 3.11")
-                                || version_str.contains("Python 3.12")
-                            {
+                            if is_valid_python_version(&version_str) {
                                 return Ok(python_path);
                             }
                         }
@@ -189,21 +211,23 @@ fn find_python_executable() -> Result<String> {
     ];
 
     for candidate in python_candidates {
+        if !validate_python_path(candidate) {
+            continue;
+        }
+
         match StdCommand::new(candidate).args(["--version"]).output() {
             Ok(output) => {
                 if output.status.success() {
                     let version_output = String::from_utf8_lossy(&output.stdout);
                     // Check for Python 3.11 or 3.12 specifically (Serena requirement)
-                    if version_output.contains("Python 3.11")
-                        || version_output.contains("Python 3.12")
-                    {
+                    if is_valid_python_version(&version_output) {
                         return Ok(candidate.to_string());
                     }
                 }
             }
-            Err(e) => {
-                // Log the error for debugging
-                eprintln!("Failed to run {}: {}", candidate, e);
+            Err(_) => {
+                // Skip candidates that can't be executed
+                continue;
             }
         }
     }
