@@ -9,5 +9,5 @@ repository = "https://github.com/oraios/serena"
 [context_servers.serena-context-server]
 name = "Serena Context Server"
 description = "Semantic code analysis and agent workflow tools"
-command = "/opt/homebrew/bin/serena"
+command = "serena"
 args = ["start-mcp-server"]
