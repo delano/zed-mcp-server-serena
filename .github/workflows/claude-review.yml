@@ -1,0 +1,43 @@
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    name: Claude Code Review
+    steps:
+      - name: Claude Review
+        uses: anthropics/claude-action@beta
+        with:
+          # Enable sticky comments - updates existing comment instead of creating new ones
+          sticky-comment: true
+          # Optional: Customize the review behavior
+          review-level: 'thorough'
+          # Focus areas for this Rust/WASM extension project  
+          focus-areas: |
+            - Rust code quality and safety
+            - WebAssembly compatibility
+            - Error handling and edge cases
+            - Documentation accuracy
+            - Security considerations for extension API usage
+          # Custom instructions for the Serena context
+          custom-instructions: |
+            This is a Zed editor extension that integrates Serena (a semantic code analysis toolkit) via MCP.
+            
+            Pay special attention to:
+            - Correct MCP server command invocation (we recently fixed a critical bug here)
+            - Cross-platform compatibility (Windows, macOS, Linux)
+            - Python executable detection and fallback logic
+            - Extension API usage patterns
+            - Error handling in restricted environments
+            
+            The extension should be secure and robust since it executes external Python processes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
