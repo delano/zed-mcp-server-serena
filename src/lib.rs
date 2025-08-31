@@ -6,6 +6,7 @@ use zed_extension_api::{
     self as zed, serde_json, Command, ContextServerConfiguration, ContextServerId, Project, Result,
 };
 
+#[allow(dead_code)]
 const PACKAGE_NAME: &str = "serena-agent";
 
 struct SerenaContextServerExtension;
@@ -32,7 +33,7 @@ impl zed::Extension for SerenaContextServerExtension {
         let settings = ContextServerSettings::for_project("serena-context-server", project)?;
         let user_settings: Option<SerenaContextServerSettings> = settings
             .settings
-            .map(|s| serde_json::from_value(s))
+            .map(serde_json::from_value)
             .transpose()
             .map_err(|e| format!("Invalid settings: {}", e))?;
 
@@ -62,15 +63,16 @@ impl zed::Extension for SerenaContextServerExtension {
 
         // Use the serena console script directly or call the CLI properly
         // First try to find the serena script in the same directory as python
-        let python_dir = std::path::Path::new(&python_path).parent()
+        let python_dir = std::path::Path::new(&python_path)
+            .parent()
             .ok_or("Could not determine Python directory")?;
         let serena_script = python_dir.join("serena");
-        
+
         let (command, args) = if serena_script.exists() {
             // Use the serena console script directly
             (
                 serena_script.to_string_lossy().to_string(),
-                vec!["start-mcp-server".to_string()]
+                vec!["start-mcp-server".to_string()],
             )
         } else {
             // Fallback to calling Python with the correct module invocation
@@ -132,10 +134,12 @@ The extension will automatically detect Python 3.11/3.12 installations, but you 
 {
   "python_executable": "/opt/homebrew/bin/python3.11"
 }
-"#.to_string();
+"#
+        .to_string();
 
-        let settings_schema = serde_json::to_string(&schemars::schema_for!(SerenaContextServerSettings))
-            .map_err(|e| format!("Failed to generate schema: {}", e))?;
+        let settings_schema =
+            serde_json::to_string(&schemars::schema_for!(SerenaContextServerSettings))
+                .map_err(|e| format!("Failed to generate schema: {}", e))?;
 
         Ok(Some(ContextServerConfiguration {
             installation_instructions,
@@ -143,23 +147,26 @@ The extension will automatically detect Python 3.11/3.12 installations, but you 
             settings_schema,
         }))
     }
-
 }
 
 fn find_python_executable() -> Result<String> {
     // First try using which to find Python executables in PATH
     let which_candidates = vec!["python3.11", "python3.12"];
-    
+
     for candidate in &which_candidates {
         if let Ok(output) = StdCommand::new("which").arg(candidate).output() {
             if output.status.success() {
                 let python_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !python_path.is_empty() {
                     // Verify it's the correct version
-                    if let Ok(version_output) = StdCommand::new(&python_path).arg("--version").output() {
+                    if let Ok(version_output) =
+                        StdCommand::new(&python_path).arg("--version").output()
+                    {
                         if version_output.status.success() {
                             let version_str = String::from_utf8_lossy(&version_output.stdout);
-                            if version_str.contains("Python 3.11") || version_str.contains("Python 3.12") {
+                            if version_str.contains("Python 3.11")
+                                || version_str.contains("Python 3.12")
+                            {
                                 return Ok(python_path);
                             }
                         }
@@ -168,26 +175,28 @@ fn find_python_executable() -> Result<String> {
             }
         }
     }
-    
+
     // Fallback to hardcoded paths
     let python_candidates = vec![
         "/opt/homebrew/bin/python3.11",
-        "/opt/homebrew/bin/python3.12", 
+        "/opt/homebrew/bin/python3.12",
         "/usr/local/bin/python3.11",
         "/usr/local/bin/python3.12",
-        "python3.11", 
-        "python3.12", 
-        "python3", 
-        "python"
+        "python3.11",
+        "python3.12",
+        "python3",
+        "python",
     ];
-    
+
     for candidate in python_candidates {
-        match StdCommand::new(candidate).args(&["--version"]).output() {
+        match StdCommand::new(candidate).args(["--version"]).output() {
             Ok(output) => {
                 if output.status.success() {
                     let version_output = String::from_utf8_lossy(&output.stdout);
                     // Check for Python 3.11 or 3.12 specifically (Serena requirement)
-                    if version_output.contains("Python 3.11") || version_output.contains("Python 3.12") {
+                    if version_output.contains("Python 3.11")
+                        || version_output.contains("Python 3.12")
+                    {
                         return Ok(candidate.to_string());
                     }
                 }
@@ -198,13 +207,14 @@ fn find_python_executable() -> Result<String> {
             }
         }
     }
-    
+
     Err("Python 3.11 or 3.12 not found. Serena requires Python 3.11-3.12. Please install a compatible version.".into())
 }
 
+#[allow(dead_code)]
 fn is_serena_installed(python_exe: &str) -> Result<bool> {
     match StdCommand::new(python_exe)
-        .args(&["-c", "import serena; print('installed')"])
+        .args(["-c", "import serena; print('installed')"])
         .output()
     {
         Ok(output) => Ok(output.status.success()),
@@ -216,15 +226,16 @@ fn is_serena_installed(python_exe: &str) -> Result<bool> {
     }
 }
 
+#[allow(dead_code)]
 fn install_serena(python_exe: &str) -> Result<()> {
     match StdCommand::new(python_exe)
-        .args(&["-m", "pip", "install", PACKAGE_NAME])
+        .args(["-m", "pip", "install", PACKAGE_NAME])
         .output()
     {
         Ok(output) => {
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(format!("Failed to install Serena: {}", stderr).into());
+                return Err(format!("Failed to install Serena: {}", stderr));
             }
             Ok(())
         }
