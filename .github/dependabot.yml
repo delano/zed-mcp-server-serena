@@ -1,0 +1,27 @@
+# .github/dependabot.yml
+
+version: 2
+updates:
+  # Rust (cargo)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Keep the rust toolchain fresh
+  - package-ecosystem: "rust-toolchain"
+    directory: "/" # Location of Cargo.toml
+    schedule:
+      interval: "weekly"
+
+  # Python (pip)
+  - package-ecosystem: "pip"
+    directory: "/" # Location of requirements.txt or pyproject.toml
+    schedule:
+      interval: "weekly"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/" # Location of workflow files
+    schedule:
+      interval: "weekly"
