@@ -71,7 +71,16 @@ impl zed::Extension for SerenaContextServerExtension {
 
 fn find_python_executable() -> Result<String> {
     // List of Python executables to try, in order of preference
-    let python_candidates = vec!["python3.11", "python3.12", "python3", "python"];
+    let python_candidates = vec![
+        "/opt/homebrew/bin/python3.11",
+        "/opt/homebrew/bin/python3.12", 
+        "/usr/local/bin/python3.11",
+        "/usr/local/bin/python3.12",
+        "python3.11", 
+        "python3.12", 
+        "python3", 
+        "python"
+    ];
     
     for candidate in python_candidates {
         if let Ok(output) = StdCommand::new(candidate)
@@ -80,14 +89,15 @@ fn find_python_executable() -> Result<String> {
         {
             if output.status.success() {
                 let version_output = String::from_utf8_lossy(&output.stdout);
-                if version_output.contains("Python 3.1") {
+                // Check for Python 3.11 or 3.12 specifically (Serena requirement)
+                if version_output.contains("Python 3.11") || version_output.contains("Python 3.12") {
                     return Ok(candidate.to_string());
                 }
             }
         }
     }
     
-    Err("Python 3.11 or later not found. Please install Python 3.11+ and ensure it's in your PATH.".into())
+    Err("Python 3.11 or 3.12 not found. Serena requires Python 3.11-3.12. Please install a compatible version.".into())
 }
 
 fn is_serena_installed(python_exe: &str) -> Result<bool> {
