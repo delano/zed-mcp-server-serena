@@ -1,10 +1,9 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::env;
 use std::process::Command as StdCommand;
 use zed::settings::ContextServerSettings;
 use zed_extension_api::{
-    self as zed, serde_json, Command, ContextServerConfiguration, ContextServerId, Project, Result,
+    self as zed, serde_json, Command, ContextServerId, Project, Result,
 };
 
 const PACKAGE_NAME: &str = "serena-agent";
@@ -68,74 +67,6 @@ impl zed::Extension for SerenaContextServerExtension {
         })
     }
 
-    fn context_server_configuration(
-        &mut self,
-        _context_server_id: &ContextServerId,
-        _project: &Project,
-    ) -> Result<Option<ContextServerConfiguration>> {
-        let installation_instructions = r#"
-# Serena Context Server Configuration
-
-## Installation
-
-This extension automatically installs the Serena MCP server using pip. 
-
-### Requirements
-- Python 3.11 or later
-- pip package manager
-
-### Automatic Installation
-The extension will automatically:
-1. Detect your Python installation
-2. Install the `serena-agent` package via pip
-3. Configure the MCP server
-
-### Manual Installation
-If automatic installation fails, you can install manually:
-
-```bash
-pip install serena-agent
-```
-
-### Configuration Options
-You can customize the extension behavior in your Zed settings:
-
-```json
-{
-  "context_servers": {
-    "serena-context-server": {
-      "settings": {
-        "python_executable": "/path/to/python",
-        "environment": {
-          "CUSTOM_VAR": "value"
-        }
-      }
-    }
-  }
-}
-```
-"#.to_string();
-
-        let default_settings = r#"{
-  // Optional: Specify Python executable path
-  // "python_executable": "/usr/bin/python3",
-  
-  // Optional: Additional environment variables
-  // "environment": {
-  //   "CUSTOM_VAR": "value"
-  // }
-}"#.to_string();
-
-        let settings_schema =
-            serde_json::to_string(&schemars::schema_for!(SerenaContextServerSettings))
-                .map_err(|e| e.to_string())?;
-
-        Ok(Some(ContextServerConfiguration {
-            installation_instructions,
-            default_settings,
-            settings_schema,
-        }))
-    }
 }
 
 fn find_python_executable() -> Result<String> {
