@@ -1,12 +1,12 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::env;
 use std::process::Command as StdCommand;
 use zed::settings::ContextServerSettings;
 use zed_extension_api::{
     self as zed, serde_json, Command, ContextServerConfiguration, ContextServerId, Project, Result,
 };
 
+#[allow(dead_code)]
 const PACKAGE_NAME: &str = "serena-agent";
 
 struct SerenaContextServerExtension;
@@ -30,23 +30,30 @@ impl zed::Extension for SerenaContextServerExtension {
         project: &Project,
     ) -> Result<Command> {
         // Get settings from project configuration
-        let settings = ContextServerSettings::for_project("serena-context-server", project).ok();
+        let settings = ContextServerSettings::for_project("serena-context-server", project)?;
         let user_settings: Option<SerenaContextServerSettings> = settings
-            .and_then(|s| s.settings)
-            .and_then(|s| serde_json::from_value(s).ok());
+            .settings
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|e| format!("Invalid settings: {}", e))?;
 
         // Find Python executable
         let python_exe = match &user_settings {
-            Some(settings) if settings.python_executable.is_some() => {
-                settings.python_executable.as_ref().unwrap().clone()
-            }
+            Some(settings) if settings.python_executable.is_some() => settings
+                .python_executable
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
             _ => find_python_executable()?,
         };
 
-        // Check if serena-agent is installed
-        if !is_serena_installed(&python_exe)? {
-            install_serena(&python_exe)?;
+        // Validate the Python executable path for basic security
+        if python_exe.is_empty() {
+            return Err("Python executable path cannot be empty".into());
         }
+
+        // Skip installation check - assume serena-agent is already installed
+        // This avoids potential issues with restricted environments
 
         // Prepare environment variables
         let mut env_vars = Vec::new();
@@ -61,9 +68,34 @@ impl zed::Extension for SerenaContextServerExtension {
         // Sanitize paths for Windows compatibility
         let python_path = zed_ext::sanitize_windows_path(python_exe.into());
 
+        // Use the serena console script directly or call the CLI properly
+        // First try to find the serena script in the same directory as python
+        let python_dir = std::path::Path::new(&python_path)
+            .parent()
+            .ok_or("Could not determine Python directory")?;
+        let serena_script = python_dir.join("serena");
+
+        let (command, args) = if serena_script.exists() {
+            // Use the serena console script directly
+            (
+                serena_script.to_string_lossy().to_string(),
+                vec!["start-mcp-server".to_string()],
+            )
+        } else {
+            // Fallback to calling Python with the correct module invocation
+            // We need to call the top_level function from serena.cli
+            (
+                python_path.to_string_lossy().to_string(),
+                vec![
+                    "-c".to_string(),
+                    "import sys; sys.argv = ['serena', 'start-mcp-server']; from serena.cli import top_level; top_level()".to_string()
+                ]
+            )
+        };
+
         Ok(Command {
-            command: python_path.to_string_lossy().to_string(),
-            args: vec!["-m".to_string(), "serena.cli".to_string(), "start_mcp_server".to_string()],
+            command,
+            args,
             env: env_vars,
         })
     }
@@ -74,61 +106,47 @@ impl zed::Extension for SerenaContextServerExtension {
         _project: &Project,
     ) -> Result<Option<ContextServerConfiguration>> {
         let installation_instructions = r#"
-# Serena Context Server Configuration
+## Serena Context Server Setup
 
-## Installation
+1. **Install Python 3.11 or 3.12** (required):
+   ```bash
+   brew install python@3.11
+   python3.11 --version
+   ```
 
-This extension automatically installs the Serena MCP server using pip. 
+2. **Install Serena Agent**:
+   ```bash
+   python3.11 -m pip install serena-agent
+   ```
 
-### Requirements
-- Python 3.11 or later
-- pip package manager
+3. **Configure in Zed settings.json**:
+   ```json
+   {
+     "context_servers": {
+       "serena-context-server": {
+         "source": "extension",
+         "enabled": true,
+         "settings": {
+           "python_executable": "/opt/homebrew/bin/python3.11"
+         }
+       }
+     }
+   }
+   ```
 
-### Automatic Installation
-The extension will automatically:
-1. Detect your Python installation
-2. Install the `serena-agent` package via pip
-3. Configure the MCP server
-
-### Manual Installation
-If automatic installation fails, you can install manually:
-
-```bash
-pip install serena-agent
-```
-
-### Configuration Options
-You can customize the extension behavior in your Zed settings:
-
-```json
-{
-  "context_servers": {
-    "serena-context-server": {
-      "settings": {
-        "python_executable": "/path/to/python",
-        "environment": {
-          "CUSTOM_VAR": "value"
-        }
-      }
-    }
-  }
-}
-```
+The extension will automatically detect Python 3.11/3.12 installations, but you can specify a custom path using the `python_executable` setting.
 "#.to_string();
 
-        let default_settings = r#"{
-  // Optional: Specify Python executable path
-  // "python_executable": "/usr/bin/python3",
-  
-  // Optional: Additional environment variables
-  // "environment": {
-  //   "CUSTOM_VAR": "value"
-  // }
-}"#.to_string();
+        let default_settings = r#"
+{
+  "python_executable": null
+}
+"#
+        .to_string();
 
         let settings_schema =
             serde_json::to_string(&schemars::schema_for!(SerenaContextServerSettings))
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| format!("Failed to generate schema: {}", e))?;
 
         Ok(Some(ContextServerConfiguration {
             installation_instructions,
@@ -138,48 +156,119 @@ You can customize the extension behavior in your Zed settings:
     }
 }
 
+/// Validates a Python path for basic security checks
+fn validate_python_path(path: &str) -> bool {
+    // Basic security check: no null bytes, no suspicious characters
+    !path.contains('\0') && !path.is_empty() && path.len() < 1000
+}
+
+/// Validates Python version string to ensure it's 3.11 or 3.12
+fn is_valid_python_version(version_str: &str) -> bool {
+    // More precise version checking to avoid matching Python 3.110, etc.
+    version_str.contains("Python 3.11.")
+        || version_str.contains("Python 3.12.")
+        || version_str.contains("Python 3.11 ")
+        || version_str.contains("Python 3.12 ")
+        || (version_str.contains("Python 3.11") && version_str.ends_with("3.11"))
+        || (version_str.contains("Python 3.12") && version_str.ends_with("3.12"))
+}
+
 fn find_python_executable() -> Result<String> {
-    // List of Python executables to try, in order of preference
-    let python_candidates = vec!["python3.11", "python3.12", "python3", "python"];
-    
-    for candidate in python_candidates {
-        if let Ok(output) = StdCommand::new(candidate)
-            .args(&["--version"])
-            .output()
-        {
+    // First try using which to find Python executables in PATH
+    let which_candidates = vec!["python3.11", "python3.12"];
+
+    for candidate in &which_candidates {
+        if let Ok(output) = StdCommand::new("which").arg(candidate).output() {
             if output.status.success() {
-                let version_output = String::from_utf8_lossy(&output.stdout);
-                if version_output.contains("Python 3.1") {
-                    return Ok(candidate.to_string());
+                let python_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !python_path.is_empty() && validate_python_path(&python_path) {
+                    // Verify it's the correct version
+                    if let Ok(version_output) =
+                        StdCommand::new(&python_path).arg("--version").output()
+                    {
+                        if version_output.status.success() {
+                            let version_str = String::from_utf8_lossy(&version_output.stdout);
+                            if is_valid_python_version(&version_str) {
+                                return Ok(python_path);
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-    
-    Err("Python 3.11 or later not found. Please install Python 3.11+ and ensure it's in your PATH.".into())
-}
 
-fn is_serena_installed(python_exe: &str) -> Result<bool> {
-    let output = StdCommand::new(python_exe)
-        .args(&["-c", "import serena; print('installed')"])
-        .output()
-        .map_err(|e| format!("Failed to check Serena installation: {}", e))?;
-    
-    Ok(output.status.success())
-}
+    // Fallback to hardcoded paths
+    let python_candidates = vec![
+        "/opt/homebrew/bin/python3.11",
+        "/opt/homebrew/bin/python3.12",
+        "/usr/local/bin/python3.11",
+        "/usr/local/bin/python3.12",
+        "python3.11",
+        "python3.12",
+        "python3",
+        "python",
+    ];
 
-fn install_serena(python_exe: &str) -> Result<()> {
-    let output = StdCommand::new(python_exe)
-        .args(&["-m", "pip", "install", PACKAGE_NAME])
-        .output()
-        .map_err(|e| format!("Failed to install Serena: {}", e))?;
-    
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to install Serena: {}", stderr).into());
+    for candidate in python_candidates {
+        if !validate_python_path(candidate) {
+            continue;
+        }
+
+        match StdCommand::new(candidate).args(["--version"]).output() {
+            Ok(output) => {
+                if output.status.success() {
+                    let version_output = String::from_utf8_lossy(&output.stdout);
+                    // Check for Python 3.11 or 3.12 specifically (Serena requirement)
+                    if is_valid_python_version(&version_output) {
+                        return Ok(candidate.to_string());
+                    }
+                }
+            }
+            Err(_) => {
+                // Skip candidates that can't be executed
+                continue;
+            }
+        }
     }
-    
-    Ok(())
+
+    Err("Python 3.11 or 3.12 not found. Serena requires Python 3.11-3.12. Please install a compatible version.".into())
+}
+
+#[allow(dead_code)]
+fn is_serena_installed(python_exe: &str) -> Result<bool> {
+    match StdCommand::new(python_exe)
+        .args(["-c", "import serena; print('installed')"])
+        .output()
+    {
+        Ok(output) => Ok(output.status.success()),
+        Err(_) => {
+            // If we can't check, assume it's installed and let it fail later if not
+            // This handles restricted environments where process spawning is limited
+            Ok(true)
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn install_serena(python_exe: &str) -> Result<()> {
+    match StdCommand::new(python_exe)
+        .args(["-m", "pip", "install", PACKAGE_NAME])
+        .output()
+    {
+        Ok(output) => {
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("Failed to install Serena: {}", stderr));
+            }
+            Ok(())
+        }
+        Err(_) => {
+            // If we can't install, just continue and hope it's already installed
+            // This handles restricted environments
+            Ok(())
+        }
+    }
 }
 
 zed::register_extension!(SerenaContextServerExtension);
