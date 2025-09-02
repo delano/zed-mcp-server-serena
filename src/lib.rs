@@ -294,3 +294,78 @@ mod zed_ext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_python_path() {
+        // Valid paths
+        assert!(validate_python_path("/usr/bin/python3.11"));
+        assert!(validate_python_path("/opt/homebrew/bin/python3.12"));
+        assert!(validate_python_path("python3.11"));
+
+        // Invalid paths
+        assert!(!validate_python_path(""));
+        assert!(!validate_python_path("path\0with\0null"));
+        assert!(!validate_python_path(&"x".repeat(1001))); // Too long
+    }
+
+    #[test]
+    fn test_is_valid_python_version() {
+        // Valid Python 3.11 versions
+        assert!(is_valid_python_version("Python 3.11.0"));
+        assert!(is_valid_python_version("Python 3.11.5"));
+        assert!(is_valid_python_version("Python 3.11 (default, Oct  5 2023)"));
+        assert!(is_valid_python_version("Python 3.11"));
+
+        // Valid Python 3.12 versions
+        assert!(is_valid_python_version("Python 3.12.0"));
+        assert!(is_valid_python_version("Python 3.12.1"));
+        assert!(is_valid_python_version("Python 3.12 (main, Dec  7 2023)"));
+
+        // Invalid versions
+        assert!(!is_valid_python_version("Python 3.10.0"));
+        assert!(!is_valid_python_version("Python 3.13.0"));
+        assert!(!is_valid_python_version("Python 2.7.0"));
+        assert!(!is_valid_python_version("Python 3.9.0"));
+        assert!(!is_valid_python_version("Python 3.110.0")); // Edge case
+    }
+
+    #[test]
+    fn test_extension_initialization() {
+        let _extension = SerenaContextServerExtension::new();
+        // Extension should initialize without panicking
+    }
+
+    #[test]
+    fn test_serena_context_server_settings_deserialization() {
+        // Test valid JSON settings
+        let json_str = r#"
+        {
+            "python_executable": "/usr/bin/python3.11",
+            "environment": {
+                "SERENA_LOG_LEVEL": "debug"
+            }
+        }
+        "#;
+
+        let settings: Result<SerenaContextServerSettings, _> = serde_json::from_str(json_str);
+        assert!(settings.is_ok());
+
+        let settings = settings.unwrap();
+        assert_eq!(settings.python_executable, Some("/usr/bin/python3.11".to_string()));
+        assert!(settings.environment.is_some());
+
+        // Test minimal valid JSON
+        let minimal_json = r#"{}"#;
+        let minimal_settings: Result<SerenaContextServerSettings, _> = serde_json::from_str(minimal_json);
+        assert!(minimal_settings.is_ok());
+    }
+
+    #[test]
+    fn test_package_name_constant() {
+        assert_eq!(PACKAGE_NAME, "serena-agent");
+    }
+}
