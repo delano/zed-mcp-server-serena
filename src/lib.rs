@@ -82,14 +82,14 @@ impl zed::Extension for SerenaContextServerExtension {
                 vec!["start-mcp-server".to_string()],
             )
         } else {
-            // Fallback to calling Python with the correct module invocation
-            // We need to call the top_level function from serena.cli
+            // Use proper module invocation instead of inline code manipulation
             (
                 python_path.to_string_lossy().to_string(),
                 vec![
-                    "-c".to_string(),
-                    "import sys; sys.argv = ['serena', 'start-mcp-server']; from serena.cli import top_level; top_level()".to_string()
-                ]
+                    "-m".to_string(),
+                    "serena".to_string(),
+                    "start-mcp-server".to_string(),
+                ],
             )
         };
 
@@ -108,15 +108,24 @@ impl zed::Extension for SerenaContextServerExtension {
         let installation_instructions = r#"
 ## Serena Context Server Setup
 
-1. **Install Python 3.11 or 3.12** (required):
+1. **Install Python 3.11 OR 3.12** (either version works):
    ```bash
+   # Option A: Install Python 3.11
    brew install python@3.11
    python3.11 --version
+   
+   # Option B: Install Python 3.12
+   brew install python@3.12
+   python3.12 --version
    ```
 
-2. **Install Serena Agent**:
+2. **Install Serena Agent** (use the Python version you installed):
    ```bash
+   # If you installed Python 3.11:
    python3.11 -m pip install serena-agent
+   
+   # If you installed Python 3.12:
+   python3.12 -m pip install serena-agent
    ```
 
 3. **Configure in Zed settings.json**:
@@ -156,21 +165,41 @@ The extension will automatically detect Python 3.11/3.12 installations, but you 
     }
 }
 
-/// Validates a Python path for basic security checks
+/// Validates a Python path for security checks
 fn validate_python_path(path: &str) -> bool {
-    // Basic security check: no null bytes, no suspicious characters
-    !path.contains('\0') && !path.is_empty() && path.len() < 1000
+    // Enhanced security checks
+    if path.is_empty() || path.len() >= 1000 || path.contains('\0') {
+        return false;
+    }
+
+    // Prevent path traversal attempts
+    if path.contains("..") || path.contains("//") {
+        return false;
+    }
+
+    // Only allow reasonable executable names/paths
+    let path_lower = path.to_lowercase();
+    path_lower.contains("python")
+        || path_lower.starts_with("/usr/")
+        || path_lower.starts_with("/opt/")
 }
 
 /// Validates Python version string to ensure it's 3.11 or 3.12
 fn is_valid_python_version(version_str: &str) -> bool {
-    // More precise version checking to avoid matching Python 3.110, etc.
-    version_str.contains("Python 3.11.")
-        || version_str.contains("Python 3.12.")
-        || version_str.contains("Python 3.11 ")
-        || version_str.contains("Python 3.12 ")
-        || (version_str.contains("Python 3.11") && version_str.ends_with("3.11"))
-        || (version_str.contains("Python 3.12") && version_str.ends_with("3.12"))
+    // Use regex-like matching to precisely identify 3.11.x or 3.12.x versions
+    let version_str = version_str.trim();
+
+    // Match "Python 3.11" followed by end, space, or dot
+    if let Some(rest) = version_str.strip_prefix("Python 3.11") {
+        return rest.is_empty() || rest.starts_with('.') || rest.starts_with(' ');
+    }
+
+    // Match "Python 3.12" followed by end, space, or dot
+    if let Some(rest) = version_str.strip_prefix("Python 3.12") {
+        return rest.is_empty() || rest.starts_with('.') || rest.starts_with(' ');
+    }
+
+    false
 }
 
 fn find_python_executable() -> Result<String> {
@@ -210,7 +239,7 @@ fn find_python_executable() -> Result<String> {
         "python",
     ];
 
-    for candidate in python_candidates {
+    for candidate in &python_candidates {
         if !validate_python_path(candidate) {
             continue;
         }
@@ -232,7 +261,18 @@ fn find_python_executable() -> Result<String> {
         }
     }
 
-    Err("Python 3.11 or 3.12 not found. Serena requires Python 3.11-3.12. Please install a compatible version.".into())
+    let attempted_paths = python_candidates.join(", ");
+    Err(format!(
+        "Python 3.11 or 3.12 not found in any of these locations: {}. 
+
+Serena requires Python 3.11 OR 3.12 (either version works).
+
+To fix this issue:
+1. Install Python 3.11: brew install python@3.11
+2. Or install Python 3.12: brew install python@3.12  
+3. Or specify custom path in Zed settings: {{\"python_executable\": \"/path/to/python3.11\"}}",
+        attempted_paths
+    ))
 }
 
 #[allow(dead_code)]
@@ -306,34 +346,42 @@ mod tests {
         assert!(validate_python_path("/usr/bin/python3.11"));
         assert!(validate_python_path("/opt/homebrew/bin/python3.12"));
         assert!(validate_python_path("python3.11"));
+        assert!(validate_python_path("python3.12"));
+        assert!(validate_python_path("python"));
 
         // Invalid paths
         assert!(!validate_python_path(""));
         assert!(!validate_python_path("path\0with\0null"));
         assert!(!validate_python_path(&"x".repeat(1001))); // Too long
+        assert!(!validate_python_path("/etc/../passwd")); // Path traversal
+        assert!(!validate_python_path("//malicious//path")); // Double slashes
+        assert!(!validate_python_path("malicious-executable")); // Suspicious name
     }
 
     #[test]
     fn test_is_valid_python_version() {
-        // Valid Python 3.11 versions
+        // Valid Python 3.11 versions (system needs 3.11 OR 3.12, not both)
         assert!(is_valid_python_version("Python 3.11.0"));
         assert!(is_valid_python_version("Python 3.11.5"));
         assert!(is_valid_python_version(
             "Python 3.11 (default, Oct  5 2023)"
         ));
         assert!(is_valid_python_version("Python 3.11"));
+        assert!(is_valid_python_version("  Python 3.11.7  ")); // With whitespace
 
         // Valid Python 3.12 versions
         assert!(is_valid_python_version("Python 3.12.0"));
         assert!(is_valid_python_version("Python 3.12.1"));
         assert!(is_valid_python_version("Python 3.12 (main, Dec  7 2023)"));
 
-        // Invalid versions
+        // Invalid versions - should NOT match
         assert!(!is_valid_python_version("Python 3.10.0"));
         assert!(!is_valid_python_version("Python 3.13.0"));
         assert!(!is_valid_python_version("Python 2.7.0"));
         assert!(!is_valid_python_version("Python 3.9.0"));
-        assert!(!is_valid_python_version("Python 3.110.0")); // Edge case
+        assert!(!is_valid_python_version("Python 3.110.0")); // Edge case - should not match
+        assert!(!is_valid_python_version("Python 3.120.0")); // Edge case - should not match
+        assert!(!is_valid_python_version("Some Python 3.11.0 thing")); // Doesn't start with "Python 3.11"
     }
 
     #[test]
