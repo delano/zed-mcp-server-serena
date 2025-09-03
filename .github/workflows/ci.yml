@@ -52,15 +52,15 @@ jobs:
       - name: Build for WebAssembly (release)
         run: cargo build --target wasm32-wasip1 --release
 
+      - name: Install wasm-tools for validation
+        run: cargo install wasm-tools
+        continue-on-error: true
+
       - name: Verify build artifacts
         run: |
           ls -la target/wasm32-wasip1/release/
           file target/wasm32-wasip1/release/zed_serena_context_server.wasm
           wasm-tools validate target/wasm32-wasip1/release/zed_serena_context_server.wasm
-
-      - name: Install wasm-tools for validation
-        run: cargo install wasm-tools
-        continue-on-error: true
 
       - name: Package extension
         run: |
