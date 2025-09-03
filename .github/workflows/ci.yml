@@ -1,71 +1,149 @@
 name: CI
+
 permissions:
   contents: read
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
+    name: Test and Build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: wasm32-wasip1
-        components: rustfmt, clippy
-    
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-    
-    - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
-    
-    - name: Build for WebAssembly
-      run: cargo build --target wasm32-wasip1 --release
-    
-    - name: Run tests
-      run: cargo test --verbose
-    
-    - name: Package extension
-      run: ./package.sh
-    
-    - name: Upload extension artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: serena-context-server-extension
-        path: serena-context-server/
-        retention-days: 30
+      - uses: actions/checkout@v4
 
-  cross-platform-test:
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run unit tests
+        run: cargo test --verbose --lib
+
+      - name: Build for WebAssembly (debug)
+        run: cargo build --target wasm32-wasip1
+
+      - name: Build for WebAssembly (release)
+        run: cargo build --target wasm32-wasip1 --release
+
+      - name: Install wasm-tools for validation
+        run: cargo install wasm-tools
+        continue-on-error: true
+
+      - name: Verify build artifacts
+        run: |
+          ls -la target/wasm32-wasip1/release/
+          file target/wasm32-wasip1/release/zed_serena_context_server.wasm
+          wasm-tools validate target/wasm32-wasip1/release/zed_serena_context_server.wasm
+
+      - name: Package extension
+        run: |
+          chmod +x ./package.sh
+          ./package.sh
+
+      - name: Verify packaged extension
+        run: |
+          ls -la serena-context-server/
+          test -f serena-context-server/extension.toml
+          test -f serena-context-server/zed_serena_context_server.wasm
+          test -f serena-context-server/README.md
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: serena-context-server-extension-${{ github.sha }}
+          path: serena-context-server/
+          retention-days: 30
+
+  cross-platform-build:
+    name: Cross-platform Build Test
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: wasm32-wasip1
+          - os: windows-latest
+            target: wasm32-wasip1
+          - os: macos-latest
+            target: wasm32-wasip1
     runs-on: ${{ matrix.os }}
+
     steps:
-    - uses: actions/checkout@v5
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: wasm32-wasip1
-    
-    - name: Build for WebAssembly
-      run: cargo build --target wasm32-wasip1 --release
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build for ${{ matrix.target }}
+        run: cargo build --target ${{ matrix.target }} --release
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  quality-checks:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check documentation
+        run: cargo doc --no-deps --document-private-items
+
+      - name: Security audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+        continue-on-error: true
+
+      - name: Check for unused dependencies
+        run: |
+          cargo install cargo-machete
+          cargo machete
+        continue-on-error: true
