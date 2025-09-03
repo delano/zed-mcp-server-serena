@@ -298,6 +298,7 @@ mod zed_ext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zed_extension_api::Extension;
 
     #[test]
     fn test_validate_python_path() {
