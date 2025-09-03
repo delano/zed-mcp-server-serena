@@ -317,7 +317,9 @@ mod tests {
         // Valid Python 3.11 versions
         assert!(is_valid_python_version("Python 3.11.0"));
         assert!(is_valid_python_version("Python 3.11.5"));
-        assert!(is_valid_python_version("Python 3.11 (default, Oct  5 2023)"));
+        assert!(is_valid_python_version(
+            "Python 3.11 (default, Oct  5 2023)"
+        ));
         assert!(is_valid_python_version("Python 3.11"));
 
         // Valid Python 3.12 versions
@@ -355,12 +357,16 @@ mod tests {
         assert!(settings.is_ok());
 
         let settings = settings.unwrap();
-        assert_eq!(settings.python_executable, Some("/usr/bin/python3.11".to_string()));
+        assert_eq!(
+            settings.python_executable,
+            Some("/usr/bin/python3.11".to_string())
+        );
         assert!(settings.environment.is_some());
 
         // Test minimal valid JSON
         let minimal_json = r#"{}"#;
-        let minimal_settings: Result<SerenaContextServerSettings, _> = serde_json::from_str(minimal_json);
+        let minimal_settings: Result<SerenaContextServerSettings, _> =
+            serde_json::from_str(minimal_json);
         assert!(minimal_settings.is_ok());
     }
 
